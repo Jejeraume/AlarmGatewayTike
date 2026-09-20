@@ -193,6 +193,44 @@ static void notifyEvent(const AlarmEntry &e) {
     web.setLastMessage(F("Appels echoues"));
 }
 
+
+static bool isConfiguredPhone(const String &sender) {
+  String n = normalizeFrenchPhone(sender);
+  const auto &snap = config.snapshot();
+  for (uint8_t i = 0; i < 4; ++i) {
+    if (!snap.phones[i][0]) continue;
+    if (normalizeFrenchPhone(String(snap.phones[i])) == n) return true;
+  }
+  return false;
+}
+
+static void handleIncomingSMS() {
+  String sender, text;
+  if (!modem.takeReceivedSMS(sender, text)) return;
+
+  Serial.print(F("[SMS RX] "));
+  Serial.print(sender);
+  Serial.print(F(" : "));
+  Serial.println(text);
+
+  if (!isConfiguredPhone(sender)) {
+    Serial.println(F("[SMS RX] Expediteur non autorise"));
+    return;
+  }
+
+  SmsAction action;
+  String commandName, error, reply;
+  if (!smsCommands.parse(text, action, commandName, error)) {
+    Serial.print(F("[SMS RX] Ignore : "));
+    Serial.println(error);
+    return;
+  }
+
+  bool ok = smsCommands.execute(action, reply);
+  if (!reply.length()) reply = ok ? F("Commande executee") : F("Commande en echec");
+  modem.sendSMS(sender, reply);
+}
+
 static void pollAlarm() {
   AlarmEntry cur;
   if (!alarmClient.getLastEvent(cur)) {
@@ -278,6 +316,7 @@ void loop() {
   web.loop();
   ota.loop();
   modem.loop();
+  handleIncomingSMS();
   handleWebActions();
 
   uint32_t now = millis();

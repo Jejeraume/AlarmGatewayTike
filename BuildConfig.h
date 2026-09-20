@@ -1,7 +1,7 @@
 #pragma once
 #include <Arduino.h>
 
-#define ALARM_GATEWAY_VERSION "5.0.0-dev3-V3base"
+#define ALARM_GATEWAY_VERSION "5.0.0-dev3-V3sms1"
 #define ALARM_GATEWAY_HOSTNAME "alarmgateway"
 
 #if !defined(ESP8266)
@@ -11,8 +11,8 @@
 #define BOARD_FRIENDLY_NAME "ESP-12E + ENC28J60 (base V3)"
 #define ENC28J60_CS_PIN 5
 
-#define MODEM_RX_PIN 4
-#define MODEM_TX_PIN 0
+#define MODEM_RX_PIN 4   // GPIO4
+#define MODEM_TX_PIN 0   // GPIO0
 #define MODEM_BAUD 115200
 
 #ifndef LED_BUILTIN
