@@ -17,8 +17,8 @@
 #include <SPI.h>
 #include <ESP8266WiFi.h>
 #include <ENC28J60lwIP.h>
-#include <SoftwareSerial.h>
 
+#include "SoftwareSerialLocal.h"
 #include "BuildConfig.h"
 #include "ConfigStore.h"
 #include "AlarmClient.h"
@@ -27,6 +27,10 @@
 #include "SmsCommands.h"
 #include "WebInterface.h"
 #include "OtaManager.h"
+
+#define MODEM_RX_PIN 4
+#define MODEM_TX_PIN 0
+#define MODEM_BAUD 115200
 
 // -----------------------------------------------------------------------------
 // Ethernet : meme forme que la V3 fonctionnelle.
@@ -40,7 +44,7 @@ byte macAddress[6] = { 0x02, 0x82, 0x66, 0x10, 0x20, 0x30 };
 // -----------------------------------------------------------------------------
 ConfigStore config;
 AlarmClient alarmClient(config);
-SoftwareSerial modemSerial(MODEM_RX_PIN, MODEM_TX_PIN);
+SoftwareSerial modemSerial(MODEM_RX_PIN, MODEM_TX_PIN); 
 ModemAT modem(modemSerial);
 SmsCommands smsCommands(config, alarmClient);
 WebInterface web(config, alarmClient, eth);
@@ -306,7 +310,18 @@ void setup() {
   startWiFiAfterEthernet();
   ota.begin();
 
-  modemSerial.begin(MODEM_BAUD);
+  //modemSerial.begin(MODEM_BAUD);
+  modemSerial.begin(
+    MODEM_BAUD,
+    SWSERIAL_8N1,
+    MODEM_RX_PIN,
+    MODEM_TX_PIN,
+    false,
+    512,
+    0
+  );
+  
+
   delay(200);
   if (modem.begin()) Serial.println(F("[MODEM] AT OK"));
   else Serial.println(F("[MODEM] non repondant"));
