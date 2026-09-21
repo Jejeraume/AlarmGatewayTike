@@ -379,42 +379,50 @@ bool ModemAT::takeReceivedSMS(String &sender, String &message) {
 }
 
 // -----------------------------------------------------------------------------
-// Envoi SMS UCS2
+// Envoi SMS
 // -----------------------------------------------------------------------------
 
 bool ModemAT::sendSMS(const String &number, const String &message) {
   if (!number.length()) return false;
 
-  // On réaffirme le mode attendu au cas où le modem aurait été reconfiguré.
-  if (!command("AT+CMGF=1")) return false;
-  if (!command("AT+CSCS=\"UCS2\"")) return false;
-
-  String encodedNumber = utf8ToUcs2Hex(number);
-  String encodedMessage = utf8ToUcs2Hex(message);
+  // Passage en alphabet GSM pour l'émission
+  if (!command("AT+CSCS=\"GSM\"")) return false;
 
   flushInput();
 
   Serial.print(F("[MODEM TX] AT+CMGS=\""));
-  Serial.print(encodedNumber);
+  Serial.print(number);
   Serial.println(F("\""));
 
   serial_.print("AT+CMGS=\"");
-  serial_.print(encodedNumber);
-  serial_.print("\"\r");
+  serial_.print(number);
+  serial_.print("\"");
+  serial_.write('\r');
 
-  if (!waitFor(">", 5000)) return false;
+  if (!waitFor(">", 5000)) {
+    // Retour en UCS2 pour la réception
+    command("AT+CSCS=\"UCS2\"");
+    return false;
+  }
 
   Serial.print(F("[MODEM TX] SMS texte : "));
   Serial.println(message);
-  Serial.print(F("[MODEM TX] SMS UCS2  : "));
-  Serial.print(encodedMessage);
-  Serial.println(F(" <CTRL-Z>"));
 
-  serial_.print(encodedMessage);
-  serial_.write(0x1A);
+for (size_t i = 0; i < message.length(); i++) {
+  serial_.write((uint8_t)message[i]);
+  delay(2);
+  yield();
+}
 
-  if (!waitFor("+CMGS:", 15000)) return false;
-  return waitFor("OK", 5000);
+delay(100);
+serial_.write(0x1A);
+
+  bool ok = waitFor("+CMGS:", 15000);
+
+  // Remettre immédiatement le modem en UCS2 pour les SMS entrants
+  command("AT+CSCS=\"UCS2\"");
+
+  return ok;
 }
 
 bool ModemAT::sendSMS(const PhoneList &phones, const String &message) {
