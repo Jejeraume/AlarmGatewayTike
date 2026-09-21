@@ -2,6 +2,13 @@
 #include <Arduino.h>
 #include "AlarmTypes.h"
 
+#define MAX_EQUIPMENT_CODES 16
+
+struct EquipmentCode {
+  char code[8];
+  char name[32];
+};
+
 struct StoredConfig {
   uint32_t magic;
   uint16_t version;
@@ -19,7 +26,7 @@ struct StoredConfig {
 
   uint16_t pollSeconds;
   char smsPassword[9];   // les applis observées utilisent 6 chiffres, marge incluse
-
+  EquipmentCode equipmentCodes[MAX_EQUIPMENT_CODES];
   bool setupCompleted;
 };
 

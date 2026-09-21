@@ -359,6 +359,13 @@ void ModemAT::loop() {
     if (readSMS((uint16_t)index)) {
       // Effacement uniquement après lecture et décodage réussis.
       command(String("AT+CMGD=") + index);
+	  // Laisser le modem terminer complètement le traitement SMS
+		// avant qu'une éventuelle réponse soit envoyée.
+		delay(300);
+		yield();
+		// Le SMS sera traité par la boucle principale.
+		// Ne plus manipuler l'UART modem pendant ce passage.
+		break;
     }
   }
 

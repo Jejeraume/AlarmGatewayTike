@@ -5,7 +5,7 @@
 
 static constexpr uint32_t CONFIG_MAGIC = 0xA1A6A505;
 static constexpr uint32_t SNAPSHOT_MAGIC = 0xA1A6C001;
-static constexpr uint16_t CONFIG_VERSION = 2;
+static constexpr uint16_t CONFIG_VERSION = 3;
 
 bool ConfigStore::loadBinary(const char *path, void *dst, size_t len) {
   File f = LittleFS.open(path, "r");
@@ -161,6 +161,15 @@ bool ConfigStore::exportCfg(String &out) const {
     out+=k+"cms="+String(e.cms?1:0)+"\n"; out+=k+"voice="+String(e.voice?1:0)+"\n";
     out+=k+"sms="+String(e.sms?1:0)+"\n"; out+=k+"email="+String(e.email?1:0)+"\n"; }
   for(size_t i=0;i<commandRuleCount();++i){ out+="command."+String(i)+".enabled="+String(rules_[i].enabled?1:0)+"\n"; out+="command."+String(i)+".text="+String(rules_[i].command)+"\n"; }
+  for (int i = 0; i < MAX_EQUIPMENT_CODES; ++i) {
+	if (cfg_.equipmentCodes[i].code[0] != '\0') {
+		out += "equipment." + String(i) + ".code=" +
+           String(cfg_.equipmentCodes[i].code) + "\n";
+
+		out += "equipment." + String(i) + ".name=" +
+           String(cfg_.equipmentCodes[i].name) + "\n";
+	}
+  }
   return true;
 }
 
@@ -185,6 +194,25 @@ bool ConfigStore::importCfg(const String &text, String &error) {
     else if(key.startsWith("phone.")){String sub=key.substring(6);if(sub=="dialCount"){int n=val.toInt();if(n<1||n>15){error="phone.dialCount invalide";return false;}ns.dialCount=n;}else{int n=sub.toInt();if(n>=1&&n<=4)strlcpy(ns.phones[n-1],val.c_str(),sizeof(ns.phones[n-1]));}}
     else if(key.startsWith("event.")){int d1=key.indexOf('.',6);if(d1>6){int n=key.substring(6,d1).toInt();String f=key.substring(d1+1);if(n>=1&&n<=40){auto&e=ns.events[n-1];if(f=="cms")e.cms=cfgBool(val);else if(f=="voice")e.voice=cfgBool(val);else if(f=="sms")e.sms=cfgBool(val);else if(f=="email")e.email=cfgBool(val);e.valid=true;}}}
     else if(key.startsWith("command.")){int d1=key.indexOf('.',8);if(d1>8){int n=key.substring(8,d1).toInt();String f=key.substring(d1+1);if(n>=0&&n<8){if(f=="enabled")nr[n].enabled=cfgBool(val);else if(f=="text")strlcpy(nr[n].command,val.c_str(),sizeof(nr[n].command));}}}
+	else if (key.startsWith("equipment.")) {
+		int d1 = key.indexOf('.', 10);
+
+		if (d1 > 10) {
+			int n = key.substring(10, d1).toInt();
+			String field = key.substring(d1 + 1);
+
+			if (n >= 0 && n < MAX_EQUIPMENT_CODES) {
+				if (field == "code") 
+				{
+					strlcpy(nc.equipmentCodes[n].code,val.c_str(),sizeof(nc.equipmentCodes[n].code));
+				}
+			else if (field == "name") 
+				{
+					strlcpy(nc.equipmentCodes[n].name,val.c_str(),sizeof(nc.equipmentCodes[n].name));
+				}
+		}
+	}
+}
   }
   if(!versionSeen){error="formatVersion absent";return false;}
   IPAddress tmp; if(strlen(nc.alarmIp) && !tmp.fromString(nc.alarmIp)){error="alarm.ip invalide";return false;}
