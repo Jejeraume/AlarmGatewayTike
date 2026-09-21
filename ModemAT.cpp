@@ -394,6 +394,10 @@ bool ModemAT::sendSMS(const String &number, const String &message) {
 
   // Passage en alphabet GSM pour l'émission
   if (!command("AT+CSCS=\"GSM\"")) return false;
+  // Laisser le modem terminer le changement de jeu de caracteres
+	delay(300);
+	yield();
+
 
   flushInput();
 

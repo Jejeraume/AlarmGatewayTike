@@ -67,12 +67,39 @@ static void setLed(bool on) {
 }
 
 static String buildSmsMessage(const AlarmEntry &e) {
-  String m = F("Alarme maison\n");
-  m += e.date;
-  m += '\n';
+  String m;
+
+  // Etat en premier
   m += e.state;
+
+  // Recherche de la correspondance Code -> Equipement
+  const auto &cfg = config.data();
+  const char *equipmentName = nullptr;
+
+  for (int i = 0; i < MAX_EQUIPMENT_CODES; ++i) {
+    if (cfg.equipmentCodes[i].code[0] == '\0')
+      continue;
+
+    if (e.code == cfg.equipmentCodes[i].code) {
+      equipmentName = cfg.equipmentCodes[i].name;
+      break;
+    }
+  }
+
+  // Ajouter l'equipement uniquement si une correspondance existe
+  if (equipmentName && equipmentName[0] != '\0') {
+    m += F("\nEquipement : ");
+    m += equipmentName;
+  }
+
+  // Code
   m += F("\nCode : ");
   m += e.code;
+
+  // Date en dernier
+  m += '\n';
+  m += e.date;
+
   return m;
 }
 
