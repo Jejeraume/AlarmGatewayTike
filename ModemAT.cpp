@@ -501,3 +501,7 @@ bool ModemAT::callWithRetries(const PhoneList &phones,
 
   return false;
 }
+
+bool ModemAT::purgeSMS() {
+    return command("AT+CMGD=1,4");
+}

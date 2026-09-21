@@ -21,6 +21,7 @@ public:
   // Retourne un SMS reçu si un +CMTI a été traité depuis le dernier appel.
   // sender et message sont renvoyés décodés en texte UTF-8 Arduino String.
   bool takeReceivedSMS(String &sender, String &message);
+  bool purgeSMS();
 
 private:
   Stream &serial_;

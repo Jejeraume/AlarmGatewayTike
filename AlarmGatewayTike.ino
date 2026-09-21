@@ -282,6 +282,110 @@ static void handleWebActions() {
   }
 }
 
+static void handleSerialCommands() {
+  if (!Serial.available()) return;
+
+  String cmd = Serial.readStringUntil('\n');
+  cmd.trim();
+
+  if (cmd.length() == 0) return;
+
+  Serial.print(F("[CONSOLE] Commande : "));
+  Serial.println(cmd);
+
+  // --------------------------------------------------
+  // Aide
+  // --------------------------------------------------
+  if (cmd.equalsIgnoreCase("HELP")) {
+    Serial.println();
+    Serial.println(F("=== COMMANDES DE MAINTENANCE ==="));
+    Serial.println(F("HELP      : affiche cette aide"));
+    Serial.println(F("AT        : teste la communication avec le modem"));
+    Serial.println(F("STATUS    : affiche quelques informations modem"));
+    Serial.println(F("PURGESMS  : supprime tous les SMS stockes"));
+    Serial.println();
+    return;
+  }
+
+  // --------------------------------------------------
+  // Test modem
+  // --------------------------------------------------
+  if (cmd.equalsIgnoreCase("AT")) {
+    Serial.println(F("[MODEM] Test AT..."));
+
+    modemSerial.print("AT\r");
+
+    uint32_t t0 = millis();
+
+    while (millis() - t0 < 2000) {
+      while (modemSerial.available()) {
+        Serial.write(modemSerial.read());
+      }
+      yield();
+    }
+
+    Serial.println();
+    return;
+  }
+
+  // --------------------------------------------------
+  // Etat modem
+  // --------------------------------------------------
+  if (cmd.equalsIgnoreCase("STATUS")) {
+    Serial.println(F("[MODEM] Etat du modem"));
+
+    const char *commands[] = {
+      "AT+CPIN?",
+      "AT+CREG?",
+      "AT+CSQ",
+      "AT+CPMS?"
+    };
+
+    for (const char *at : commands) {
+      Serial.print(F("> "));
+      Serial.println(at);
+
+      modemSerial.print(at);
+      modemSerial.print('\r');
+
+      uint32_t t0 = millis();
+
+      while (millis() - t0 < 1000) {
+        while (modemSerial.available()) {
+          Serial.write(modemSerial.read());
+        }
+        yield();
+      }
+
+      Serial.println();
+    }
+
+    return;
+  }
+
+  // --------------------------------------------------
+  // Purge SMS
+  // --------------------------------------------------
+  if (cmd.equalsIgnoreCase("PURGESMS")) {
+    Serial.println(F("[SMS] Purge de la banque SMS..."));
+
+    if (modem.purgeSMS()) {
+      Serial.println(F("[SMS] Banque SMS purgee avec succes"));
+    } else {
+      Serial.println(F("[SMS] ERREUR pendant la purge"));
+    }
+
+    return;
+  }
+
+  // --------------------------------------------------
+  // Commande inconnue
+  // --------------------------------------------------
+  Serial.print(F("[CONSOLE] Commande inconnue : "));
+  Serial.println(cmd);
+  Serial.println(F("Tapez HELP pour afficher les commandes."));
+}
+
 void setup() {
   pinMode(STATUS_LED_PIN, OUTPUT);
   digitalWrite(STATUS_LED_PIN, STATUS_LED_ACTIVE_LOW ? HIGH : LOW);
@@ -333,7 +437,7 @@ void loop() {
   modem.loop();
   handleIncomingSMS();
   handleWebActions();
-
+  handleSerialCommands();
   uint32_t now = millis();
   uint32_t interval = (uint32_t)config.data().pollSeconds * 1000UL;
   if (lastPollMs == 0 || (uint32_t)(now - lastPollMs) >= interval) {
@@ -344,3 +448,22 @@ void loop() {
   delay(1);
   yield();
 }
+
+/*
+static void handleSerialCommands() {
+  if (!Serial.available()) return;
+
+  String cmd = Serial.readStringUntil('\n');
+  cmd.trim();
+
+  if (cmd.equalsIgnoreCase("PURGESMS")) {
+    Serial.println(F("[SMS] Purge de la banque SMS..."));
+
+    if (modem.purgeSMS()) {
+      Serial.println(F("[SMS] Banque SMS purgee avec succes"));
+    } else {
+      Serial.println(F("[SMS] ERREUR pendant la purge"));
+    }
+  }
+}
+*/
