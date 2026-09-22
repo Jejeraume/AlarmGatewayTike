@@ -104,6 +104,103 @@ static String buildSmsMessage(const AlarmEntry &e) {
 }
 
 static bool initEthernetV3() {
+  // Initialisation ENC28J60.
+  //
+  // 1 - Tentative d'obtention d'une adresse par DHCP.
+  // 2 - Si aucune adresse apres 10 secondes :
+  //       IP ESP = 192.168.0.1
+  //       masque = 255.255.255.0
+  //
+  // Le serveur DHCP de secours sera ajoute ensuite.
+
+  WiFi.mode(WIFI_OFF);
+  WiFi.forceSleepBegin();
+  delay(1);
+
+  SPI.begin(); // ESP8266 : SCK=14, MISO=12, MOSI=13
+  SPI.setBitOrder(MSBFIRST);
+  SPI.setDataMode(SPI_MODE0);
+  SPI.setFrequency(4000000);
+
+  eth.setDefault();
+
+  Serial.println(F("[ETH] Initialisation ENC28J60..."));
+
+  if (!eth.begin(macAddress)) {
+    Serial.println(F("[ETH] ERREUR : ENC28J60 non detecte"));
+    return false;
+  }
+
+  // --------------------------------------------------
+  // Attente d'une adresse DHCP
+  // --------------------------------------------------
+
+  Serial.print(F("[ETH] Attente DHCP"));
+
+  uint32_t start = millis();
+
+  while (millis() - start < 10000UL) {
+
+    if (eth.localIP() != IPAddress(0, 0, 0, 0))
+      break;
+
+    Serial.print('.');
+    delay(500);
+    yield();
+  }
+
+  Serial.println();
+
+  // --------------------------------------------------
+  // Aucun DHCP -> IP statique de secours
+  // --------------------------------------------------
+
+  if (eth.localIP() == IPAddress(0, 0, 0, 0)) {
+
+    Serial.println(F("[ETH] Aucun serveur DHCP detecte"));
+    Serial.println(F("[ETH] Passage en mode autonome"));
+
+    IPAddress ip(192, 168, 0, 1);
+    IPAddress gateway(192, 168, 0, 1);
+    IPAddress netmask(255, 255, 255, 0);
+    IPAddress dns(192, 168, 0, 1);
+
+    if (!eth.config(ip, gateway, netmask, dns)) {
+      Serial.println(F("[ETH] ERREUR configuration IP statique"));
+      return false;
+    }
+
+    delay(100);
+
+    Serial.print(F("[ETH] IP secours ESP : "));
+    Serial.println(eth.localIP());
+
+    Serial.print(F("[ETH] Masque : "));
+    Serial.println(eth.subnetMask());
+
+    return true;
+  }
+
+  // --------------------------------------------------
+  // DHCP obtenu normalement
+  // --------------------------------------------------
+
+  Serial.println(F("[ETH] DHCP obtenu"));
+
+  Serial.print(F("[ETH] IP ESP : "));
+  Serial.println(eth.localIP());
+
+  Serial.print(F("[ETH] Masque : "));
+  Serial.println(eth.subnetMask());
+
+  Serial.print(F("[ETH] Gateway : "));
+  Serial.println(eth.gatewayIP());
+
+  return true;
+}
+
+/*
+static bool initEthernetV3() {
   // Initialisation ENC28J60 reprise STRICTEMENT de la V3 fonctionnelle.
   // Sur l'ESP8266 temporaire, l'interface Ethernet reste en DHCP.
   // Les champs ethernet.ip / ethernet.netmask sont conserves dans la
@@ -141,6 +238,7 @@ static bool initEthernetV3() {
   Serial.println(eth.gatewayIP());
   return true;
 }
+*/
 
 static void startWiFiAfterEthernet() {
   // L'ENC28J60 est deja initialise. On peut maintenant reveiller le Wi-Fi.
