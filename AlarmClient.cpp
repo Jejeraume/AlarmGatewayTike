@@ -111,6 +111,78 @@ bool AlarmClient::setZoneBypass(uint8_t zone,bool enabled){
   String body="Ctrl=0&BypassNum="+String(z)+"&BypassOpt="+String(enabled?1:2);String r;int s=0;return httpPost("/RemoteCtr.htm",body,r,s,3000);
 }
 
+bool AlarmClient::discoverAlarm(const String &prefix,
+                                IPAddress &found,
+                                uint16_t timeoutPerHostMs) {
+  // Le parametre prefix est conserve pour compatibilite avec
+  // l'interface existante, mais la recherche couvre maintenant
+  // 192.168.0.x, 192.168.1.x et 192.168.2.x.
+
+  for (int subnet = 0; subnet <= 2; ++subnet) {
+
+    String scanPrefix = "192.168." + String(subnet);
+
+    Serial.print(F("[SCAN] Recherche sur "));
+    Serial.print(scanPrefix);
+    Serial.println(F(".x"));
+
+    for (int host = 1; host <= 254; ++host) {
+
+      IPAddress ip;
+      if (!ip.fromString(scanPrefix + "." + String(host)))
+        continue;
+
+      AlarmTcpClient c;
+      c.setTimeout(timeoutPerHostMs);
+
+      if (!c.connect(ip, 80))
+        continue;
+
+      Serial.print(F("[SCAN] Serveur HTTP detecte : "));
+      Serial.println(ip);
+
+      c.print(F(
+        "GET /SystemLog.htm HTTP/1.0\r\n"
+        "Connection: close\r\n\r\n"
+      ));
+
+      uint32_t t0 = millis();
+      String head;
+
+      while (millis() - t0 < 250 && head.length() < 300) {
+        while (c.available()) {
+          head += (char)c.read();
+        }
+
+        if (head.indexOf("HTTP/") >= 0)
+          break;
+
+        delay(1);
+        yield();
+      }
+
+      c.stop();
+
+      // HTTP 200, 401, etc. :
+      // présence d'un serveur HTTP répondant à SystemLog.htm.
+      if (head.indexOf("HTTP/") >= 0) {
+        found = ip;
+
+        Serial.print(F("[SCAN] Centrale trouvee : "));
+        Serial.println(found);
+
+        return true;
+      }
+    }
+  }
+
+  lastError_ =
+    F("Aucune centrale HTTP trouvee sur 192.168.0.x / 1.x / 2.x");
+
+  return false;
+}
+
+/*
 bool AlarmClient::discoverAlarm(const String &prefix,IPAddress &found,uint16_t timeoutPerHostMs){
   // prefix attendu sous la forme "192.168.0". Le scan est volontairement limité
   // au /24 choisi par l'utilisateur pour rester prédictible et portable.
@@ -130,3 +202,4 @@ bool AlarmClient::discoverAlarm(const String &prefix,IPAddress &found,uint16_t t
   }
   lastError_=F("Aucune centrale HTTP trouvee sur le sous-reseau");return false;
 }
+*/
