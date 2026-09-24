@@ -80,11 +80,7 @@ void ConfigStore::defaults() {
 }
 
 bool ConfigStore::begin() {
-#if defined(ESP32)
   if (!LittleFS.begin(true)) return false;
-#else
-  if (!LittleFS.begin()) return false;
-#endif
 
   if (!loadBinary("/config.bin", &cfg_, sizeof(cfg_)) ||
       cfg_.magic != CONFIG_MAGIC || cfg_.version != CONFIG_VERSION) {

@@ -1,25 +1,45 @@
 #pragma once
 #include <Arduino.h>
 
-#define ALARM_GATEWAY_VERSION "5.0.0-dev3-V3sms1"
+// -----------------------------------------------------------------------------
+// AlarmGatewayTike - configuration materielle
+// Cible : WT32-ETH01 / ESP32 + LAN8720
+// -----------------------------------------------------------------------------
+
+#define ALARM_GATEWAY_VERSION "6.0.0-dev1"
 #define ALARM_GATEWAY_HOSTNAME "alarmgateway"
 
-#if !defined(ESP8266)
-  #error "Cette reconstruction V3base est destinee a l'ESP-12E / ESP8266 + ENC28J60."
+#if !defined(ESP32)
+  #error "AlarmGatewayTike necessite un ESP32."
 #endif
 
-#define BOARD_FRIENDLY_NAME "ESP-12E + ENC28J60 (base V3)"
-#define ENC28J60_CS_PIN 5
+#define BOARD_FRIENDLY_NAME "WT32-ETH01 + LAN8720"
 
-#define MODEM_RX_PIN 4   // GPIO4
-#define MODEM_TX_PIN 0   // GPIO0
+// -----------------------------------------------------------------------------
+// Modem cellulaire
+// ESP32 : utilisation d'un UART materiel
+// -----------------------------------------------------------------------------
+
+#define MODEM_UART_NUM 2
 #define MODEM_BAUD 115200
 
-#ifndef LED_BUILTIN
-  #define LED_BUILTIN 2
-#endif
-#define STATUS_LED_PIN LED_BUILTIN
+// A definir suivant le cablage retenu sur le WT32-ETH01
+// UART2 modem
+// GPIO5 / GPIO17 reserves
+// GPIO0 reserve au LAN8720 (RMII REF_CLK)
+#define MODEM_RX_PIN 35
+#define MODEM_TX_PIN 4
+
+// -----------------------------------------------------------------------------
+// LED d'etat
+// -----------------------------------------------------------------------------
+
+#define STATUS_LED_PIN 2
 #define STATUS_LED_ACTIVE_LOW 1
+
+// -----------------------------------------------------------------------------
+// Centrale d'alarme
+// -----------------------------------------------------------------------------
 
 #define DEFAULT_POLL_SECONDS 10
 #define MIN_POLL_SECONDS 1

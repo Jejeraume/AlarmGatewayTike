@@ -1,15 +1,10 @@
 #pragma once
 #include <Arduino.h>
+#include <WiFi.h>
 #include "ConfigStore.h"
 #include "AlarmTypes.h"
 
-#if defined(ESP32)
-  #include <WiFi.h>
-  using AlarmTcpClient = WiFiClient;
-#else
-  #include <ESP8266WiFi.h>
-  using AlarmTcpClient = WiFiClient;
-#endif
+using AlarmTcpClient = WiFiClient;
 
 class AlarmClient {
 public:
