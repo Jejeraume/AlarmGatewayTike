@@ -27,15 +27,9 @@
 // UART2 modem
 // GPIO5 / GPIO17 reserves
 // GPIO0 reserve au LAN8720 (RMII REF_CLK)
-#define MODEM_RX_PIN 35
-#define MODEM_TX_PIN 4
+#define MODEM_RX_PIN 5
+#define MODEM_TX_PIN 17
 
-// -----------------------------------------------------------------------------
-// LED d'etat
-// -----------------------------------------------------------------------------
-
-#define STATUS_LED_PIN 2
-#define STATUS_LED_ACTIVE_LOW 1
 
 // -----------------------------------------------------------------------------
 // Centrale d'alarme

@@ -40,26 +40,8 @@ WebInterface web(config, alarmClient);
 AlarmEntry lastEntry;
 
 bool haveLastEntry = false;
-bool ledLatched = false;
 
 uint32_t lastPollMs = 0;
-
-// -----------------------------------------------------------------------------
-// LED
-// -----------------------------------------------------------------------------
-
-static void setLed(bool on) {
-  ledLatched = on;
-
-  digitalWrite(
-    STATUS_LED_PIN,
-    STATUS_LED_ACTIVE_LOW
-      ? (on ? LOW : HIGH)
-      : (on ? HIGH : LOW)
-  );
-
-  web.setLedState(on);
-}
 
 // -----------------------------------------------------------------------------
 // Message SMS
@@ -436,8 +418,6 @@ static void pollAlarm() {
 
   lastEntry = cur;
 
-  setLed(true);
-
   notifyEvent(cur);
 }
 
@@ -446,8 +426,6 @@ static void pollAlarm() {
 // -----------------------------------------------------------------------------
 
 static void handleWebActions() {
-  if (web.consumeLedToggleRequest())
-    setLed(!ledLatched);
 
   if (web.consumeTestRequest())
     testAlarmNow(true);
@@ -639,21 +617,7 @@ static void handleSerialCommands() {
 // -----------------------------------------------------------------------------
 
 void setup() {
-  // --------------------------------------------------
-  // LED
-  // --------------------------------------------------
 
-  pinMode(
-    STATUS_LED_PIN,
-    OUTPUT
-  );
-
-  digitalWrite(
-    STATUS_LED_PIN,
-    STATUS_LED_ACTIVE_LOW
-      ? HIGH
-      : LOW
-  );
 
   // --------------------------------------------------
   // Console

@@ -20,11 +20,9 @@ public:
   void setLastEvent(const AlarmEntry &entry, bool valid);
   void setAlarmReachable(bool v) { alarmReachable_ = v; }
   void setLastMessage(const String &s) { lastMessage_ = s; }
-  void setLedState(bool v) { ledState_ = v; }
 
   bool consumeTestRequest();
   bool consumeSearchRequest();
-  bool consumeLedToggleRequest();
 
 private:
   ConfigStore &config_;
@@ -35,13 +33,11 @@ private:
   AlarmEntry lastEntry_;
   bool haveEntry_ = false;
   bool alarmReachable_ = false;
-  bool ledState_ = false;
 
   String lastMessage_;
 
   bool testReq_ = false;
   bool searchReq_ = false;
-  bool ledReq_ = false;
 
   String cfgUpload_;
 
