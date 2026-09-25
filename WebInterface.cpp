@@ -44,7 +44,53 @@ if(lastMessage_.length()){
 p+=F("</div>");
 return p+pageFooter();}
 
-String WebInterface::eventsPage()const{String p=pageHeader("Evenements");p+=F("<p>Configuration locale des notifications. Aucun acces a AlarmEvent.htm n'est effectue.</p><form method='post' action='/saveEvents'><table><tr><th>#</th><th>Evenement</th><th>CMS</th><th>Appel</th><th>SMS</th><th>Email</th></tr>");for(int i=0;i<40;++i){const auto&e=config_.snapshot().events[i];p+=F("<tr><td>");p+=String(i+1);p+=F("</td><td>");p+=esc(e.name);p+=F("</td>");const char*names[]={"cms","voice","sms","email"};const bool vals[]={e.cms,e.voice,e.sms,e.email};for(int j=0;j<4;++j){p+=F("<td><input type='checkbox' name='");p+=names[j];p+=String(i+1);p+=F("' ");if(vals[j])p+=F("checked");p+=F("></td>");}p+=F("</tr>");}p+=F("</table><button class='pri'>Enregistrer les evenements</button></form>");return p+pageFooter();}
+String WebInterface::eventsPage()const{String p=pageHeader("Evenements");
+	p+=F(
+	"<p>Configuration locale des notifications.</p>"
+	"<form method='post' action='/readEvents'>"
+	"<button class='sec'>Lire evenements programmes</button>"
+	"</form>"
+	);
+
+	if(lastMessage_.length()){
+  p+=F("<div class='mono'>");
+  p+=esc(lastMessage_);
+  p+=F("</div>");
+}
+
+	p+=F(
+  "<form method='post' action='/saveEvents'>"
+  "<table>"
+  "<tr>"
+  "<th>#</th>"
+  "<th>Evenement</th>"
+  "<th>CMS</th>"
+  "<th>Appel</th>"
+  "<th>SMS</th>"
+  "<th>Email</th>"
+  "</tr>"
+);
+	for(int i=0;i<40;++i){
+		const auto&e=config_.snapshot().events[i];
+		p+=F("<tr><td>");
+		p+=String(i+1);
+		p+=F("</td><td>");
+		p+=esc(e.name);
+		p+=F("</td>");
+		const char*names[]={"cms","voice","sms","email"};
+		const bool vals[]={e.cms,e.voice,e.sms,e.email};
+		for(int j=0;j<4;++j){
+			p+=F("<td><input type='checkbox' name='");
+			p+=names[j];p+=String(i+1);
+			p+=F("' ");
+			if(vals[j])p+=F("checked");
+				p+=F("></td>");
+			}
+			p+=F("</tr>");
+		}
+	p+=F("</table><button class='pri'>Enregistrer les evenements</button></form>");
+	return p+pageFooter();}
+	
 String WebInterface::commandsPage()const{String p=pageHeader("Table d'equivalence SMS");p+=F("<p>Format recu : <code>#PWD000000#DESARMER</code>.</p><form method='post' action='/saveCommands'><table><tr><th>Actif</th><th>Commande recue</th><th>Action</th></tr>");const auto*r=config_.commandRules();for(size_t i=0;i<ConfigStore::commandRuleCount();++i){p+=F("<tr><td><input type='checkbox' name='en");p+=String(i);p+=F("' ");if(r[i].enabled)p+=F("checked");p+=F("></td><td><input name='cmd");p+=String(i);p+=F("' value='");p+=esc(r[i].command);p+=F("'></td><td>");p+=smsActionName(r[i].action);p+=F("</td></tr>");}p+=F("</table><button class='pri'>Enregistrer la table</button></form>");return p+pageFooter();}
 void WebInterface::redirect(const char*path){server_.sendHeader("Location",path,true);server_.send(303,"text/plain","");}
 void WebInterface::handleSave(){auto&c=config_.data();auto&s=config_.snapshot();if(server_.hasArg("ssid"))strlcpy(c.wifiSsid,server_.arg("ssid").c_str(),sizeof(c.wifiSsid));if(server_.hasArg("wpass"))strlcpy(c.wifiPassword,server_.arg("wpass").c_str(),sizeof(c.wifiPassword));if(server_.hasArg("alarmip"))strlcpy(c.alarmIp,server_.arg("alarmip").c_str(),sizeof(c.alarmIp));if(server_.hasArg("user"))strlcpy(c.alarmUser,server_.arg("user").c_str(),sizeof(c.alarmUser));if(server_.hasArg("pass"))strlcpy(c.alarmPassword,server_.arg("pass").c_str(),sizeof(c.alarmPassword));if(server_.hasArg("ethip"))strlcpy(c.ethernetLocalIp,server_.arg("ethip").c_str(),sizeof(c.ethernetLocalIp));if(server_.hasArg("mask"))strlcpy(c.ethernetNetmask,server_.arg("mask").c_str(),sizeof(c.ethernetNetmask));if(server_.hasArg("prefix"))strlcpy(c.searchPrefix,server_.arg("prefix").c_str(),sizeof(c.searchPrefix));if(server_.hasArg("smspwd"))strlcpy(c.smsPassword,server_.arg("smspwd").c_str(),sizeof(c.smsPassword));if(server_.hasArg("poll")){int n=server_.arg("poll").toInt();if(n>=MIN_POLL_SECONDS&&n<=MAX_POLL_SECONDS)c.pollSeconds=n;}for(int i=0;i<4;++i){String k="phone"+String(i+1);if(server_.hasArg(k))strlcpy(s.phones[i],server_.arg(k).c_str(),sizeof(s.phones[i]));}if(server_.hasArg("dial")){int n=server_.arg("dial").toInt();if(n>=1&&n<=15)s.dialCount=n;}
@@ -76,7 +122,58 @@ for (int i = 0; i < MAX_EQUIPMENT_CODES; ++i) {
 }
 s.phoneDataValid=true;c.setupCompleted=strlen(c.alarmIp)>0;config_.save();config_.saveSnapshot();
 lastMessage_=F("Configuration enregistree. Redemarrer si le Wi-Fi/Ethernet a change.");redirect();}
-void WebInterface::handleSaveEvents(){auto&s=config_.snapshot();for(int i=0;i<40;++i){int n=i+1;s.events[i].cms=server_.hasArg("cms"+String(n));s.events[i].voice=server_.hasArg("voice"+String(n));s.events[i].sms=server_.hasArg("sms"+String(n));s.events[i].email=server_.hasArg("email"+String(n));s.events[i].valid=true;}s.eventDataValid=true;config_.saveSnapshot();lastMessage_=F("Configuration des evenements enregistree");redirect("/events");}
+void WebInterface::handleSaveEvents(){
+	auto&s=config_.snapshot();
+	for(int i=0;i<40;++i){
+		int n=i+1;s.events[i].cms=server_.hasArg("cms"+String(n));
+		s.events[i].voice=server_.hasArg("voice"+String(n));
+		s.events[i].sms=server_.hasArg("sms"+String(n));
+		s.events[i].email=server_.hasArg("email"+String(n));
+		s.events[i].valid=true;
+		}
+	s.eventDataValid=true;
+	config_.saveSnapshot();
+	lastMessage_=F("Configuration des evenements enregistree");redirect("/events");
+	}
+
+void WebInterface::handleReadEvents() {
+  AlarmProgrammedEvent events[40];
+  size_t count = 0;
+
+  if (!alarm_.readProgrammedEvents(events, 40, count)) {
+    lastMessage_ = String(F("Erreur lecture evenements : ")) +
+                   alarm_.lastError();
+
+    redirect("/events");
+    return;
+  }
+
+  auto &snapshot = config_.snapshot();
+
+  for (size_t i = 0; i < count; ++i) {
+    int index = events[i].code - 1;
+
+    if (index < 0 || index >= 40)
+      continue;
+
+    strlcpy(
+      snapshot.events[index].name,
+      events[i].name.c_str(),
+      sizeof(snapshot.events[index].name)
+    );
+
+    snapshot.events[index].valid = true;
+  }
+
+  snapshot.eventDataValid = true;
+  config_.saveSnapshot();
+
+  lastMessage_ =
+    String(count) + F(" evenements lus depuis la centrale");
+
+  redirect("/events");
+}
+
 void WebInterface::handleSaveCommands(){auto*r=config_.commandRules();for(size_t i=0;i<ConfigStore::commandRuleCount();++i){String k="cmd"+String(i);if(server_.hasArg(k))strlcpy(r[i].command,server_.arg(k).c_str(),sizeof(r[i].command));r[i].enabled=server_.hasArg("en"+String(i));}config_.saveCommandRules();lastMessage_=F("Table SMS enregistree");redirect("/commands");}
 void WebInterface::handleExportCfg(){String data;config_.exportCfg(data);server_.sendHeader("Content-Disposition","attachment; filename=AlarmGateway.cfg");server_.send(200,"application/octet-stream",data);}
 void WebInterface::handleCfgUpload(){HTTPUpload&up=server_.upload();if(up.status==UPLOAD_FILE_START){cfgUpload_="";cfgUpload_.reserve(8000);}else if(up.status==UPLOAD_FILE_WRITE){if(cfgUpload_.length()+up.currentSize<=16000)for(size_t i=0;i<up.currentSize;++i)cfgUpload_+=(char)up.buf[i];}else if(up.status==UPLOAD_FILE_ABORTED){cfgUpload_="";}}
@@ -118,9 +215,36 @@ void WebInterface::handleUpdateUpload() {
 }
 
 
-void WebInterface::begin(){server_.on("/",HTTP_GET,[this](){server_.send(200,"text/html; charset=utf-8",mainPage());});server_.on("/events",HTTP_GET,[this](){server_.send(200,"text/html; charset=utf-8",eventsPage());});server_.on("/commands",HTTP_GET,[this](){server_.send(200,"text/html; charset=utf-8",commandsPage());});server_.on("/backup",HTTP_GET,[this](){String p=pageHeader("Import / Export .cfg");p+=F("<p class='warn'><b>Attention :</b> le fichier .cfg contient les mots de passe Wi-Fi, centrale et SMS en clair.</p><p><a href='/export.cfg'><button class='pri'>Exporter la configuration</button></a></p><form method='post' action='/import' enctype='multipart/form-data'><input type='file' name='config' accept='.cfg'><button class='sec'>Importer le fichier .cfg</button></form>");server_.send(200,"text/html; charset=utf-8",p+pageFooter());});server_.on("/export.cfg",HTTP_GET,[this](){handleExportCfg();});server_.on("/import",HTTP_POST,[this](){handleImportCfg();},[this](){handleCfgUpload();});server_.on("/save",HTTP_POST,[this](){handleSave();});server_.on("/saveEvents",HTTP_POST,[this](){handleSaveEvents();});server_.on("/saveCommands",HTTP_POST,[this](){handleSaveCommands();});server_.on("/test",HTTP_POST,[this](){testReq_=true;redirect();});server_.on("/search",HTTP_POST,[this](){searchReq_=true;redirect();});
-
-server_.on("/update",HTTP_GET,[this](){String p=pageHeader("Mise a jour OTA");p+=F("<form method='post' action='/update' enctype='multipart/form-data'><input type='file' name='firmware' accept='.bin'><button class='pri'>Mettre a jour</button></form><p class='muted'>La configuration LittleFS est conservee.</p>");server_.send(200,"text/html; charset=utf-8",p+pageFooter());});server_.on("/update",HTTP_POST,[this](){bool ok=!Update.hasError();server_.send(200,"text/plain",ok?"Mise a jour OK - redemarrage":"Erreur mise a jour");if(ok){delay(500);ESP.restart();}},[this](){handleUpdateUpload();});server_.onNotFound([this](){server_.send(404,"text/plain","404");});server_.begin();}
+void WebInterface::begin(){
+	server_.on("/",HTTP_GET,[this](){
+		server_.send(200,"text/html; charset=utf-8",mainPage());});
+	server_.on("/events",HTTP_GET,[this](){
+		server_.send(200,"text/html; charset=utf-8",eventsPage());});
+	server_.on("/commands",HTTP_GET,[this](){
+		server_.send(200,"text/html; charset=utf-8",commandsPage());});
+	server_.on("/backup",HTTP_GET,[this](){
+		String p=pageHeader("Import / Export .cfg");p+=F("<p class='warn'><b>Attention :</b> le fichier .cfg contient les mots de passe Wi-Fi, centrale et SMS en clair.</p><p><a href='/export.cfg'><button class='pri'>Exporter la configuration</button></a></p><form method='post' action='/import' enctype='multipart/form-data'><input type='file' name='config' accept='.cfg'><button class='sec'>Importer le fichier .cfg</button></form>");server_.send(200,"text/html; charset=utf-8",p+pageFooter());});
+	server_.on("/export.cfg",HTTP_GET,[this](){
+		handleExportCfg();});
+	server_.on("/import",HTTP_POST,[this](){
+		handleImportCfg();},[this](){handleCfgUpload();});server_.on("/save",HTTP_POST,[this](){handleSave();});
+	server_.on("/saveEvents",HTTP_POST,[this](){
+		handleSaveEvents();});
+//Ajout de la route
+	server_.on("/readEvents", HTTP_POST, [this]() {
+		handleReadEvents();});	
+	server_.on("/saveCommands",HTTP_POST,[this](){
+		handleSaveCommands();});server_.on("/test",HTTP_POST,[this](){testReq_=true;redirect();});
+	server_.on("/search",HTTP_POST,[this](){
+		searchReq_=true;redirect();});
+	server_.on("/update",HTTP_GET,[this](){
+		String p=pageHeader("Mise a jour OTA");p+=F("<form method='post' action='/update' enctype='multipart/form-data'><input type='file' name='firmware' accept='.bin'><button class='pri'>Mettre a jour</button></form><p class='muted'>La configuration LittleFS est conservee.</p>");server_.send(200,"text/html; charset=utf-8",p+pageFooter());});
+	server_.on("/update",HTTP_POST,[this](){
+		bool ok=!Update.hasError();server_.send(200,"text/plain",ok?"Mise a jour OK - redemarrage":"Erreur mise a jour");if(ok){delay(500);ESP.restart();}},[this](){handleUpdateUpload();});
+	server_.onNotFound([this](){
+		server_.send(404,"text/plain","404");});
+	server_.begin();}
+	
 void WebInterface::loop(){server_.handleClient();}void WebInterface::setLastEvent(const AlarmEntry&e,bool v){lastEntry_=e;haveEntry_=v;}
 bool WebInterface::consumeTestRequest(){
 bool v=testReq_;

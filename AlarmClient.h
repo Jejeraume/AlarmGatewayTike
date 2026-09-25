@@ -6,6 +6,11 @@
 
 using AlarmTcpClient = WiFiClient;
 
+struct AlarmProgrammedEvent {
+  uint8_t code;
+  String name;
+};
+
 class AlarmClient {
 public:
   explicit AlarmClient(ConfigStore &config);
@@ -13,6 +18,7 @@ public:
   bool getLastEvent(AlarmEntry &entry, int *httpStatus = nullptr);
   bool remoteControl(uint8_t ctrl);
   bool setZoneBypass(uint8_t zone, bool enabled);
+  bool readProgrammedEvents(AlarmProgrammedEvent *events, size_t maxEvents, size_t &eventCount);
 
   // Détection première installation : cherche un serveur HTTP sur prefix.1..254
   // et vérifie qu'il ressemble à la centrale (index/SystemLog ou HTTP 401).

@@ -100,6 +100,101 @@ bool AlarmClient::getLastEvent(AlarmEntry &entry,int *httpStatus){
   if(httpStatus)*httpStatus=s;return true;
 }
 
+bool AlarmClient::readProgrammedEvents(AlarmProgrammedEvent *events,
+                                       size_t maxEvents,
+                                       size_t &eventCount) {
+  eventCount = 0;
+
+  if (!events || maxEvents == 0) {
+    lastError_ = F("Buffer evenements invalide");
+    return false;
+  }
+
+  String html;
+  int status = 0;
+
+  if (!httpGet("/AlarmEvent.htm", html, status, 4000)) {
+    return false;
+  }
+
+  // On se place sur la liste SelectEvent pour ne pas analyser
+  // d'eventuelles autres balises <option> de la page.
+  int selectPos = html.indexOf("name=\"SelectEvent\"");
+
+  if (selectPos < 0) {
+    selectPos = html.indexOf("name='SelectEvent'");
+  }
+
+  if (selectPos < 0) {
+    lastError_ = F("SelectEvent introuvable");
+    return false;
+  }
+
+  int selectEnd = html.indexOf("</select>", selectPos);
+
+  if (selectEnd < 0) {
+    lastError_ = F("Fin SelectEvent introuvable");
+    return false;
+  }
+
+  int pos = selectPos;
+
+  while (eventCount < maxEvents) {
+
+    int optionPos = html.indexOf("<option", pos);
+
+    if (optionPos < 0 || optionPos >= selectEnd)
+      break;
+
+    int tagEnd = html.indexOf('>', optionPos);
+
+    if (tagEnd < 0 || tagEnd >= selectEnd)
+      break;
+
+    int optionEnd = html.indexOf("</option>", tagEnd);
+
+    if (optionEnd < 0 || optionEnd > selectEnd)
+      break;
+
+    String tag = html.substring(optionPos, tagEnd + 1);
+
+    int valuePos = tag.indexOf("value=\"");
+
+    if (valuePos >= 0) {
+      valuePos += 7;
+
+      int valueEnd = tag.indexOf('"', valuePos);
+
+      if (valueEnd > valuePos) {
+
+        int code = tag.substring(valuePos, valueEnd).toInt();
+
+        String name = stripTags(
+          html.substring(tagEnd + 1, optionEnd)
+        );
+
+        name.trim();
+
+        // L'option 0 est vide sur la centrale.
+        if (code > 0 && name.length()) {
+          events[eventCount].code = (uint8_t)code;
+          events[eventCount].name = name;
+          eventCount++;
+        }
+      }
+    }
+
+    pos = optionEnd + 9;
+  }
+
+  if (eventCount == 0) {
+    lastError_ = F("Aucun evenement trouve dans AlarmEvent.htm");
+    return false;
+  }
+
+  return true;
+}
+
 bool AlarmClient::remoteControl(uint8_t ctrl){
   if(ctrl<1||ctrl>4){lastError_=F("Commande RemoteCtr invalide");return false;}
   String body="Ctrl="+String(ctrl)+"&BypassNum=00&BypassOpt=0";String r;int s=0;return httpPost("/RemoteCtr.htm",body,r,s,3000);

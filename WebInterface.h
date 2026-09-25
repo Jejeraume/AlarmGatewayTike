@@ -53,7 +53,7 @@ private:
   void handleSave();
   void handleSaveCommands();
   void handleSaveEvents();
-
+  void handleReadEvents();
   void handleExportCfg();
   void handleImportCfg();
   void handleCfgUpload();
