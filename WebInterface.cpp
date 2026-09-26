@@ -66,9 +66,24 @@ String WebInterface::mainPage()const{
 	p+=esc(c.alarmPassword);
 	p+=F("'><label>Intervalle SystemLog (secondes)</label><input type='number' min='1' max='3600' name='poll' value='");
 	p+=String(c.pollSeconds);
+
 	p+=F("'><label>Code SMS apres #PWD</label><input maxlength='8' name='smspwd' value='");
 	p+=esc(c.smsPassword);
-	p+=F("'><h3>Notifications</h3>");
+
+	p+=F("'><h3>Home Assistant</h3>");
+
+	p+=F("<label>IP Home Assistant</label><input name='haip' value='");
+	p+=esc(c.homeAssistantIp);
+
+	p+=F("'><label>Port Home Assistant</label><input type='number' min='1' max='65535' name='haport' value='");
+	p+=String(c.homeAssistantPort);
+
+	p+=F("'><label>Token Home Assistant</label><input class='txt' type='password' name='hatoken' value='");
+	p+=esc(c.homeAssistantToken);
+
+	p+=F("'><h3>Notifications</h3>");	
+	
+	
 	for(int i=0;i<4;++i){
 		p+=F("<label>Telephone ");
 		p+=String(i+1);
@@ -198,8 +213,19 @@ void WebInterface::handleSave(){
 	if(server_.hasArg("ethip"))strlcpy(c.ethernetLocalIp,server_.arg("ethip").c_str(),sizeof(c.ethernetLocalIp));
 	if(server_.hasArg("mask"))strlcpy(c.ethernetNetmask,server_.arg("mask").c_str(),sizeof(c.ethernetNetmask));
 	if(server_.hasArg("prefix"))strlcpy(c.searchPrefix,server_.arg("prefix").c_str(),sizeof(c.searchPrefix));
+	
 	if(server_.hasArg("smspwd"))strlcpy(c.smsPassword,server_.arg("smspwd").c_str(),sizeof(c.smsPassword));
+	if(server_.hasArg("haip"))
+		strlcpy(c.homeAssistantIp, server_.arg("haip").c_str(), sizeof(c.homeAssistantIp));
+
+	if(server_.hasArg("haport")){
+		int n = server_.arg("haport").toInt();
+		if(n >= 1 && n <= 65535) c.homeAssistantPort = (uint16_t)n;
+	}
+	if(server_.hasArg("hatoken")) strlcpy(c.homeAssistantToken, server_.arg("hatoken").c_str(), sizeof(c.homeAssistantToken));
+	
 	if(server_.hasArg("poll")){int n=server_.arg("poll").toInt();
+	
 	if(n>=MIN_POLL_SECONDS&&n<=MAX_POLL_SECONDS)c.pollSeconds=n;
 	}
 	for(int i=0;i<4;++i){

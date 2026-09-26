@@ -5,7 +5,7 @@
 
 static constexpr uint32_t CONFIG_MAGIC = 0xA1A6A505;
 static constexpr uint32_t SNAPSHOT_MAGIC = 0xA1A6C001;
-static constexpr uint16_t CONFIG_VERSION = 3;
+static constexpr uint16_t CONFIG_VERSION = 4;
 
 bool ConfigStore::loadBinary(const char *path, void *dst, size_t len) {
   File f = LittleFS.open(path, "r");
@@ -71,8 +71,12 @@ void ConfigStore::defaults() {
   strlcpy(cfg_.searchPrefix, DEFAULT_SEARCH_PREFIX, sizeof(cfg_.searchPrefix));
   cfg_.pollSeconds = DEFAULT_POLL_SECONDS;
   strlcpy(cfg_.smsPassword, "000000", sizeof(cfg_.smsPassword));
+  
+  cfg_.homeAssistantIp[0] = '\0';
+  cfg_.homeAssistantPort = 8123;
+  cfg_.homeAssistantToken[0] = '\0';
+  
   cfg_.setupCompleted = false;
-
   memset(&snapshot_, 0, sizeof(snapshot_));
   snapshot_.magic = SNAPSHOT_MAGIC;
   snapshot_.dialCount = 1;
@@ -111,6 +115,9 @@ bool ConfigStore::begin() {
   cfg_.ethernetNetmask[sizeof(cfg_.ethernetNetmask)-1] = 0;
   cfg_.searchPrefix[sizeof(cfg_.searchPrefix)-1] = 0;
   cfg_.smsPassword[sizeof(cfg_.smsPassword)-1] = 0;
+
+  cfg_.homeAssistantIp[sizeof(cfg_.homeAssistantIp)-1] = 0;
+  cfg_.homeAssistantToken[sizeof(cfg_.homeAssistantToken)-1] = 0;
 
   if (cfg_.pollSeconds < MIN_POLL_SECONDS || cfg_.pollSeconds > MAX_POLL_SECONDS)
     cfg_.pollSeconds = DEFAULT_POLL_SECONDS;
@@ -152,6 +159,9 @@ bool ConfigStore::exportCfg(String &out) const {
   out += "search.prefix="+String(cfg_.searchPrefix)+"\n";
   out += "poll.seconds="+String(cfg_.pollSeconds)+"\n";
   out += "sms.password="+String(cfg_.smsPassword)+"\n";
+  out += "homeassistant.ip="+String(cfg_.homeAssistantIp)+"\n";
+  out += "homeassistant.port="+String(cfg_.homeAssistantPort)+"\n";
+  out += "homeassistant.token="+String(cfg_.homeAssistantToken)+"\n";
   for(int i=0;i<4;++i) out += "phone."+String(i+1)+"="+String(snapshot_.phones[i])+"\n";
   out += "phone.dialCount="+String(snapshot_.dialCount)+"\n";
   for(int i=0;i<40;++i){ const auto&e=snapshot_.events[i]; String k="event."+String(i+1)+".";
@@ -189,6 +199,21 @@ bool ConfigStore::importCfg(const String &text, String &error) {
     else if(key=="search.prefix") strlcpy(nc.searchPrefix,val.c_str(),sizeof(nc.searchPrefix));
     else if(key=="poll.seconds"){int n=val.toInt();if(n<MIN_POLL_SECONDS||n>MAX_POLL_SECONDS){error="poll.seconds invalide";return false;}nc.pollSeconds=n;}
     else if(key=="sms.password") strlcpy(nc.smsPassword,val.c_str(),sizeof(nc.smsPassword));
+	
+	else if(key=="homeassistant.ip") 
+		strlcpy(nc.homeAssistantIp,val.c_str(),sizeof(nc.homeAssistantIp));
+	else if(key=="homeassistant.port") {
+		int n = val.toInt();
+		if(n < 1 || n > 65535) {
+			error = "homeassistant.port invalide";
+			return false;
+		}
+		nc.homeAssistantPort = (uint16_t)n;
+	}
+
+	else if(key=="homeassistant.token") 
+		strlcpy(nc.homeAssistantToken,val.c_str(),sizeof(nc.homeAssistantToken));
+	
     else if(key.startsWith("phone.")){
 		String sub=key.substring(6);
 		if(sub=="dialCount"){

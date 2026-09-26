@@ -26,7 +26,13 @@ struct StoredConfig {
 
   uint16_t pollSeconds;
   char smsPassword[9];   // les applis observées utilisent 6 chiffres, marge incluse
+  
+  char homeAssistantIp[16];
+  uint16_t homeAssistantPort;
+  char homeAssistantToken[256];
+  
   EquipmentCode equipmentCodes[MAX_EQUIPMENT_CODES];
+  
   bool setupCompleted;
 };
 

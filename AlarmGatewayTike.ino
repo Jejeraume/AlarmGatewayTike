@@ -5,7 +5,7 @@
  *
  * - Ethernet natif ESP32 / LAN8720
  * - Wi-Fi optionnel
- * - Modem EG810M sur UART2 materiel
+ * - Modem A7670E sur UART2 materiel
  * - WebUpdate gere par WebInterface
  * - Configuration locale LittleFS
  * - SystemLog.htm = lecture periodique
@@ -233,6 +233,91 @@ static bool testAlarmNow(bool verbose) {
 }
 
 // -----------------------------------------------------------------------------
+// Notification Home Assistant
+// -----------------------------------------------------------------------------
+
+static bool sendHomeAssistantEvent(const AlarmEntry &e) {
+  const auto &cfg = config.data();
+
+  if (!cfg.homeAssistantIp[0] || !cfg.homeAssistantToken[0] || cfg.homeAssistantPort == 0) {
+    Serial.println(F("[HA] Configuration incomplete"));
+    return false;
+  }
+
+  WiFiClient client;
+
+  Serial.print(F("[HA] Connexion a "));
+  Serial.print(cfg.homeAssistantIp);
+  Serial.print(':');
+  Serial.println(cfg.homeAssistantPort);
+
+  if (!client.connect(cfg.homeAssistantIp, cfg.homeAssistantPort)) {
+    Serial.println(F("[HA] Connexion impossible"));
+    return false;
+  }
+
+  String json;
+  json.reserve(256);
+
+  json += F("{\"code\":\"");
+  json += e.code;
+  json += F("\",\"event\":\"");
+  json += e.state;
+  json += F("\",\"date\":\"");
+  json += e.date;
+  json += F("\"}");
+
+  client.print(F("POST /api/events/alarmgateway_event HTTP/1.1\r\n"));
+
+  client.print(F("Host: "));
+  client.print(cfg.homeAssistantIp);
+  client.print(F("\r\n"));
+
+  client.print(F("Authorization: Bearer "));
+  client.print(cfg.homeAssistantToken);
+  client.print(F("\r\n"));
+
+  client.print(F("Content-Type: application/json\r\n"));
+
+  client.print(F("Content-Length: "));
+  client.print(json.length());
+  client.print(F("\r\n"));
+
+  client.print(F("Connection: close\r\n\r\n"));
+
+  client.print(json);
+
+  uint32_t start = millis();
+
+  while (!client.available() &&
+         client.connected() &&
+         millis() - start < 3000) {
+    delay(10);
+  }
+
+  if (!client.available()) {
+    Serial.println(F("[HA] Pas de reponse"));
+    client.stop();
+    return false;
+  }
+
+  String statusLine =
+    client.readStringUntil('\n');
+
+  statusLine.trim();
+
+  Serial.print(F("[HA] "));
+  Serial.println(statusLine);
+
+  bool ok =
+    statusLine.indexOf(" 200 ") >= 0;
+
+  client.stop();
+
+  return ok;
+}
+
+// -----------------------------------------------------------------------------
 // Notification evenement
 // -----------------------------------------------------------------------------
 
@@ -263,41 +348,75 @@ static void notifyEvent(const AlarmEntry &e) {
   bool makeCall =
     eventCfg ? eventCfg->voice : e.isIntrusion();
 
-  if (!sendSms && !makeCall)
+  bool sendHA =
+    eventCfg ? eventCfg->HomeAssistant : false;
+
+  // Aucune notification demandee
+  if (!sendSms && !makeCall && !sendHA)
     return;
 
-  PhoneList phones;
+  // ---------------------------------------------------------------------------
+  // SMS / appels
+  // ---------------------------------------------------------------------------
 
-  for (uint8_t i = 0; i < 4; ++i)
-    phones.phone[i] = snap.phones[i];
+  if (sendSms || makeCall) {
+    PhoneList phones;
 
-  phones.dialCount = snap.dialCount;
+    for (uint8_t i = 0; i < 4; ++i)
+      phones.phone[i] = snap.phones[i];
 
-  if (phones.countValid() == 0) {
-    web.setLastMessage(
-      F("Evenement detecte mais aucun telephone configure")
-    );
-    return;
+    phones.dialCount = snap.dialCount;
+
+    if (phones.countValid() == 0) {
+      web.setLastMessage(
+        F("Evenement detecte mais aucun telephone configure")
+      );
+    }
+    else {
+      if (sendSms &&
+          !modem.sendSMS(
+            phones,
+            buildSmsMessage(e)
+          )) {
+
+        web.setLastMessage(
+          F("Au moins un SMS a echoue")
+        );
+      }
+
+      if (makeCall &&
+          !modem.callWithRetries(
+            phones,
+            phones.dialCount,
+            20000
+          )) {
+
+        web.setLastMessage(
+          F("Appels echoues")
+        );
+      }
+    }
   }
 
-  if (sendSms &&
-      !modem.sendSMS(phones, buildSmsMessage(e))) {
+  // ---------------------------------------------------------------------------
+  // Home Assistant
+  // ---------------------------------------------------------------------------
 
-    web.setLastMessage(
-      F("Au moins un SMS a echoue")
+  if (sendHA) {
+    Serial.println(
+      F("[HA] Envoi notification")
     );
-  }
 
-  if (makeCall &&
-      !modem.callWithRetries(
-        phones,
-        phones.dialCount,
-        20000
-      )) {
-
-    web.setLastMessage(
-      F("Appels echoues")
-    );
+    if (sendHomeAssistantEvent(e)) {
+      Serial.println(
+        F("[HA] Notification envoyee")
+      );
+    }
+    else {
+      Serial.println(
+        F("[HA] Echec notification")
+      );
+    }
   }
 }
 
@@ -487,26 +606,19 @@ static void handleSerialCommands() {
 
   if (cmd.equalsIgnoreCase("HELP")) {
     Serial.println();
-    Serial.println(
-      F("=== COMMANDES DE MAINTENANCE ===")
-    );
+    Serial.println(F("=== COMMANDES DE MAINTENANCE ==="));
 
-    Serial.println(
-      F("HELP      : affiche cette aide")
-    );
+    Serial.println(F("HELP      : affiche cette aide"));
 
-    Serial.println(
-      F("AT        : teste la communication avec le modem")
-    );
+    Serial.println(F("AT        : teste la communication avec le modem"));
 
-    Serial.println(
-      F("STATUS    : affiche quelques informations modem")
-    );
+    Serial.println(F("STATUS    : affiche quelques informations modem"));
 
-    Serial.println(
-      F("PURGESMS  : supprime tous les SMS stockes")
-    );
+    Serial.println(F("PURGESMS  : supprime tous les SMS stockes"));
 
+	Serial.println(F("TESTHA    : teste la notification Home Assistant"));
+	Serial.println(F("TESTSMS   : envoie un SMS de test"));
+	Serial.println(F("TESTCALL  : appelle le premier numero configure"));
     Serial.println();
 
     return;
@@ -601,15 +713,90 @@ static void handleSerialCommands() {
     return;
   }
 
-  Serial.print(
-    F("[CONSOLE] Commande inconnue : ")
-  );
 
+	// --------------------------------------------------
+	// TESTHA
+	// --------------------------------------------------
+
+	if (cmd.equalsIgnoreCase("TESTHA")) {
+		Serial.println(F("[TEST] Home Assistant"));
+		AlarmEntry e;
+		e.code = "TEST";
+		e.state = "Test AlarmGateway";
+		e.date = "Test manuel";
+		if (sendHomeAssistantEvent(e))
+			Serial.println(F("[TEST] Home Assistant OK"));
+		else
+			Serial.println(F("[TEST] Home Assistant ECHEC"));
+		return;
+	}
+
+
+	// --------------------------------------------------
+	// TESTSMS
+	// --------------------------------------------------
+
+	if (cmd.equalsIgnoreCase("TESTSMS")) {
+		Serial.println(F("[TEST] SMS"));
+		const auto &snap = config.snapshot();
+		PhoneList phones;
+		for (uint8_t i = 0; i < 4; ++i) phones.phone[i] = "";
+
+	// Premier numero configure uniquement
+		for (uint8_t i = 0; i < 4; ++i) {
+			if (snap.phones[i][0]) {
+				phones.phone[0] = snap.phones[i];
+			break;
+			}
+		}
+
+		if (phones.countValid() == 0) {
+			Serial.println(F("[TEST] Aucun telephone configure"));
+			return;
+		}
+
+		if (modem.sendSMS(phones, "Test SMS AlarmGateway")) {
+			Serial.println(F("[TEST] SMS OK"));
+		}
+		else {
+			Serial.println(F("[TEST] SMS ECHEC"));
+		}
+	return;
+	}
+
+
+	// --------------------------------------------------
+	// TESTCALL
+	// --------------------------------------------------
+
+	if (cmd.equalsIgnoreCase("TESTCALL")) {
+		Serial.println(F("[TEST] Appel"));
+		const auto &snap = config.snapshot();
+		String number;
+		// Premier numero configure
+		for (uint8_t i = 0; i < 4; ++i) {
+			if (snap.phones[i][0]) {
+				number = snap.phones[i];
+				break;
+			}
+		}
+		if (!number.length()) {
+			Serial.println(F("[TEST] Aucun telephone configure"));
+			return;
+		}
+		Serial.print(F("[TEST] Appel vers "));
+		Serial.println(number);
+		if (modem.call(number, 20000)) {
+			Serial.println(F("[TEST] Appel termine"));
+		}
+		else {
+			Serial.println(F("[TEST] Appel ECHEC"));
+		}
+		return;
+	}
+  Serial.print(F("[CONSOLE] Commande inconnue : "));
   Serial.println(cmd);
-
-  Serial.println(
-    F("Tapez HELP pour afficher les commandes.")
-  );
+  Serial.println( F("Tapez HELP pour afficher les commandes."));
 }
 
 // -----------------------------------------------------------------------------
