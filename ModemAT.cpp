@@ -505,7 +505,7 @@ bool ModemAT::callWithRetries(const PhoneList &phones,
     for (uint8_t i = 0; i < 4; ++i) {
       if (!phones.phone[i].length()) continue;
 
-      if (call(phones.phone[i], ringTimeMs)) return true;
+      call(phones.phone[i], ringTimeMs);
       delay(500);
     }
   }
