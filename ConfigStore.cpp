@@ -54,8 +54,9 @@ void ConfigStore::defaultEvents() {
     snapshot_.events[i].id=i+1;
     strlcpy(snapshot_.events[i].name,names[i],sizeof(snapshot_.events[i].name));
     snapshot_.events[i].valid=true;
-    snapshot_.events[i].cms=false; snapshot_.events[i].voice=false;
-    snapshot_.events[i].sms=true; snapshot_.events[i].email=false;
+    snapshot_.events[i].voice=false;
+    snapshot_.events[i].sms=true; 
+	snapshot_.events[i].HomeAssistant=false;
   }
   snapshot_.eventDataValid=true;
   snapshot_.phoneDataValid=true;
@@ -154,8 +155,9 @@ bool ConfigStore::exportCfg(String &out) const {
   for(int i=0;i<4;++i) out += "phone."+String(i+1)+"="+String(snapshot_.phones[i])+"\n";
   out += "phone.dialCount="+String(snapshot_.dialCount)+"\n";
   for(int i=0;i<40;++i){ const auto&e=snapshot_.events[i]; String k="event."+String(i+1)+".";
-    out+=k+"cms="+String(e.cms?1:0)+"\n"; out+=k+"voice="+String(e.voice?1:0)+"\n";
-    out+=k+"sms="+String(e.sms?1:0)+"\n"; out+=k+"email="+String(e.email?1:0)+"\n"; }
+	out+=k+"voice="+String(e.voice?1:0)+"\n";
+    out+=k+"sms="+String(e.sms?1:0)+"\n"; 
+	out+=k+"HomeAssistant="+String(e.HomeAssistant?1:0)+"\n"; }
   for(size_t i=0;i<commandRuleCount();++i){ out+="command."+String(i)+".enabled="+String(rules_[i].enabled?1:0)+"\n"; out+="command."+String(i)+".text="+String(rules_[i].command)+"\n"; }
   for (int i = 0; i < MAX_EQUIPMENT_CODES; ++i) {
 	if (cfg_.equipmentCodes[i].code[0] != '\0') {
@@ -187,9 +189,45 @@ bool ConfigStore::importCfg(const String &text, String &error) {
     else if(key=="search.prefix") strlcpy(nc.searchPrefix,val.c_str(),sizeof(nc.searchPrefix));
     else if(key=="poll.seconds"){int n=val.toInt();if(n<MIN_POLL_SECONDS||n>MAX_POLL_SECONDS){error="poll.seconds invalide";return false;}nc.pollSeconds=n;}
     else if(key=="sms.password") strlcpy(nc.smsPassword,val.c_str(),sizeof(nc.smsPassword));
-    else if(key.startsWith("phone.")){String sub=key.substring(6);if(sub=="dialCount"){int n=val.toInt();if(n<1||n>15){error="phone.dialCount invalide";return false;}ns.dialCount=n;}else{int n=sub.toInt();if(n>=1&&n<=4)strlcpy(ns.phones[n-1],val.c_str(),sizeof(ns.phones[n-1]));}}
-    else if(key.startsWith("event.")){int d1=key.indexOf('.',6);if(d1>6){int n=key.substring(6,d1).toInt();String f=key.substring(d1+1);if(n>=1&&n<=40){auto&e=ns.events[n-1];if(f=="cms")e.cms=cfgBool(val);else if(f=="voice")e.voice=cfgBool(val);else if(f=="sms")e.sms=cfgBool(val);else if(f=="email")e.email=cfgBool(val);e.valid=true;}}}
-    else if(key.startsWith("command.")){int d1=key.indexOf('.',8);if(d1>8){int n=key.substring(8,d1).toInt();String f=key.substring(d1+1);if(n>=0&&n<8){if(f=="enabled")nr[n].enabled=cfgBool(val);else if(f=="text")strlcpy(nr[n].command,val.c_str(),sizeof(nr[n].command));}}}
+    else if(key.startsWith("phone.")){
+		String sub=key.substring(6);
+		if(sub=="dialCount"){
+			int n=val.toInt();
+			if(n<1||n>15){
+				error="phone.dialCount invalide";
+				return false;
+			}
+			ns.dialCount=n;
+		}
+		else{
+			int n=sub.toInt();
+			if(n>=1&&n<=4)strlcpy(ns.phones[n-1],val.c_str(),sizeof(ns.phones[n-1]));
+		}
+	}
+    else if(key.startsWith("event.")){
+		int d1=key.indexOf('.',6);
+		if(d1>6){
+			int n=key.substring(6,d1).toInt();
+			String f=key.substring(d1+1);
+			if(n>=1&&n<=40){auto&e=ns.events[n-1];
+			if(f=="voice")e.voice=cfgBool(val);
+			else if(f=="sms")e.sms=cfgBool(val);
+			else if(f=="HomeAssistant")e.HomeAssistant=cfgBool(val);
+			e.valid=true;
+			}
+		}
+	}
+    else if(key.startsWith("command.")){
+		int d1=key.indexOf('.',8);
+		if(d1>8){
+			int n=key.substring(8,d1).toInt();
+			String f=key.substring(d1+1);
+			if(n>=0&&n<8){
+				if(f=="enabled")nr[n].enabled=cfgBool(val);
+				else if(f=="text")strlcpy(nr[n].command,val.c_str(),sizeof(nr[n].command));
+			}
+		}
+	}
 	else if (key.startsWith("equipment.")) {
 		int d1 = key.indexOf('.', 10);
 
@@ -198,20 +236,20 @@ bool ConfigStore::importCfg(const String &text, String &error) {
 			String field = key.substring(d1 + 1);
 
 			if (n >= 0 && n < MAX_EQUIPMENT_CODES) {
-				if (field == "code") 
-				{
+				if (field == "code") {
 					strlcpy(nc.equipmentCodes[n].code,val.c_str(),sizeof(nc.equipmentCodes[n].code));
 				}
 			else if (field == "name") 
 				{
 					strlcpy(nc.equipmentCodes[n].name,val.c_str(),sizeof(nc.equipmentCodes[n].name));
-				}
+			}
 		}
 	}
+  }	
 }
-  }
-  if(!versionSeen){error="formatVersion absent";return false;}
-  IPAddress tmp; if(strlen(nc.alarmIp) && !tmp.fromString(nc.alarmIp)){error="alarm.ip invalide";return false;}
+if(!versionSeen){error="formatVersion absent";return false;}
+  IPAddress tmp; 
+  if(strlen(nc.alarmIp) && !tmp.fromString(nc.alarmIp)){error="alarm.ip invalide";return false;}
   if(!tmp.fromString(nc.ethernetLocalIp)){error="ethernet.ip invalide";return false;}
   nc.magic=CONFIG_MAGIC; nc.version=CONFIG_VERSION; nc.setupCompleted=strlen(nc.alarmIp)>0; ns.magic=SNAPSHOT_MAGIC; ns.phoneDataValid=true; ns.eventDataValid=true;
   cfg_=nc; snapshot_=ns; memcpy(rules_,nr,sizeof(rules_));

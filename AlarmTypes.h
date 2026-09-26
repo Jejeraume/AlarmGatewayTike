@@ -40,10 +40,9 @@ struct CentralEventConfig {
   uint8_t id = 0;
   char name[48] = {0};
   bool valid = true;        // Configuration locale, modifiable depuis la page Evenements
-  bool cms = false;
   bool voice = false;
   bool sms = false;
-  bool email = false;
+  bool HomeAssistant = false;
 };
 
 struct CentralSnapshot {
