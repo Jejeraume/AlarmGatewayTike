@@ -24,6 +24,11 @@
 #include "SmsCommands.h"
 #include "WebInterface.h"
 
+#include "esp_netif_net_stack.h"
+#include "lwip/netif.h"
+#include "lwip/tcpip.h"
+#include "dhcpserver/dhcpserver.h"
+
 // -----------------------------------------------------------------------------
 // Application
 // -----------------------------------------------------------------------------
@@ -42,6 +47,8 @@ AlarmEntry lastEntry;
 bool haveLastEntry = false;
 
 uint32_t lastPollMs = 0;
+
+static dhcps_t *directDhcpServer = nullptr;
 
 // -----------------------------------------------------------------------------
 // Message SMS
@@ -87,6 +94,60 @@ static String buildSmsMessage(const AlarmEntry &e) {
 // -----------------------------------------------------------------------------
 // Ethernet WT32-ETH01 / LAN8720
 // -----------------------------------------------------------------------------
+
+static bool startDirectDhcpServer() {
+  esp_netif_t *espNetif = ETH.netif();
+
+  if (!espNetif) {
+    Serial.println(F("[DHCP] Interface Ethernet introuvable"));
+    return false;
+  }
+
+  struct netif *lwipNetif =
+    static_cast<struct netif *>(
+      esp_netif_get_netif_impl(espNetif)
+    );
+
+  if (!lwipNetif) {
+    Serial.println(F("[DHCP] Interface lwIP introuvable"));
+    return false;
+  }
+
+  directDhcpServer = dhcps_new();
+
+  if (!directDhcpServer) {
+    Serial.println(F("[DHCP] Creation serveur impossible"));
+    return false;
+  }
+
+  ip4_addr_t serverIp;
+  IP4_ADDR(&serverIp, 192, 168, 4, 1);
+
+  LOCK_TCPIP_CORE();
+
+  err_t err = dhcps_start(
+    directDhcpServer,
+    lwipNetif,
+    serverIp
+  );
+
+  UNLOCK_TCPIP_CORE();
+
+  if (err != ERR_OK) {
+    Serial.print(F("[DHCP] Demarrage impossible, erreur "));
+    Serial.println((int)err);
+
+    dhcps_delete(directDhcpServer);
+    directDhcpServer = nullptr;
+
+    return false;
+  }
+
+  Serial.println(F("[DHCP] Serveur DHCP demarre"));
+  Serial.println(F("[DHCP] Centrale en attente d'une adresse"));
+
+  return true;
+}
 
 static bool initEthernet() {
   Serial.println(F("[ETH] Initialisation LAN8720..."));
@@ -143,17 +204,42 @@ static bool initEthernet() {
   start = millis();
 
   while (ETH.localIP() == IPAddress(0, 0, 0, 0) &&
-         millis() - start < 10000UL) {
+         millis() - start < 40000UL) {
     Serial.print('.');
     delay(250);
   }
 
   Serial.println();
 
-  if (ETH.localIP() == IPAddress(0, 0, 0, 0)) {
-    Serial.println(F("[ETH] DHCP non obtenu"));
-    return false;
-  }
+	if (ETH.localIP() == IPAddress(0, 0, 0, 0)) {
+		Serial.println(F("[ETH] DHCP non obtenu"));
+		Serial.println(F("[ETH] Passage en mode connexion directe"));
+
+		IPAddress ip(192, 168, 4, 1);
+		IPAddress gateway(0, 0, 0, 0);
+		IPAddress subnet(255, 255, 255, 0);
+		IPAddress dns(0, 0, 0, 0);
+		if (!ETH.config(ip, gateway, subnet, dns)) {
+			Serial.println(F("[ETH] Configuration IP directe impossible"));
+			return false;
+		}
+		Serial.print(F("[ETH] IP directe : "));
+		Serial.println(ETH.localIP());
+		if (!startDirectDhcpServer()) {
+			Serial.println(F("[ETH] Echec serveur DHCP mode direct"));
+			return false;
+		}
+	}
+	else {
+		Serial.println(F("[ETH] DHCP obtenu"));
+	}
+	Serial.print(F("[ETH] IP      : "));
+	Serial.println(ETH.localIP());
+	Serial.print(F("[ETH] Masque  : "));
+	Serial.println(ETH.subnetMask());
+	Serial.print(F("[ETH] Gateway : "));
+	Serial.println(ETH.gatewayIP());
+	return true;
 
   Serial.println(F("[ETH] DHCP obtenu"));
 
