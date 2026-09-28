@@ -223,6 +223,13 @@ bool AlarmClient::discoverAlarm(const String &prefix,
 
     for (int host = 1; host <= 254; ++host) {
 
+      if (host == 1 || ((host - 1) % 10) == 0) {
+        Serial.print(F("[SCAN] "));
+        Serial.print(host);
+        Serial.print('-');
+        Serial.println(min(host + 9, 254));
+      }   
+
       IPAddress ip;
       if (!ip.fromString(scanPrefix + "." + String(host)))
         continue;

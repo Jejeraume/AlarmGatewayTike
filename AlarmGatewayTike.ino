@@ -24,11 +24,6 @@
 #include "SmsCommands.h"
 #include "WebInterface.h"
 
-#include "esp_netif_net_stack.h"
-#include "lwip/netif.h"
-#include "lwip/tcpip.h"
-#include "dhcpserver/dhcpserver.h"
-
 // -----------------------------------------------------------------------------
 // Application
 // -----------------------------------------------------------------------------
@@ -47,8 +42,6 @@ AlarmEntry lastEntry;
 bool haveLastEntry = false;
 
 uint32_t lastPollMs = 0;
-
-static dhcps_t *directDhcpServer = nullptr;
 
 // -----------------------------------------------------------------------------
 // Message SMS
@@ -95,95 +88,84 @@ static String buildSmsMessage(const AlarmEntry &e) {
 // Ethernet WT32-ETH01 / LAN8720
 // -----------------------------------------------------------------------------
 
-static bool startDirectDhcpServer() {
-  esp_netif_t *espNetif = ETH.netif();
+static bool startDirectMode() {
 
-  if (!espNetif) {
-    Serial.println(F("[DHCP] Interface Ethernet introuvable"));
-    return false;
-  }
+  IPAddress localIp(192, 168, 1, 1);
+  IPAddress gateway(0, 0, 0, 0);
+  IPAddress subnet(255, 255, 255, 0);
+  IPAddress dns(0, 0, 0, 0);
 
-  struct netif *lwipNetif =
-    static_cast<struct netif *>(
-      esp_netif_get_netif_impl(espNetif)
+  Serial.println(F("[ETH] Mode connexion directe"));
+
+  // Place le WT32 sur le reseau usine de la centrale
+  if (!ETH.config(
+        localIp,
+        gateway,
+        subnet,
+        dns)) {
+
+    Serial.println(
+      F("[ETH] Configuration IP directe impossible")
     );
 
-  if (!lwipNetif) {
-    Serial.println(F("[DHCP] Interface lwIP introuvable"));
     return false;
   }
 
-  directDhcpServer = dhcps_new();
+  delay(500);
 
-  if (!directDhcpServer) {
-    Serial.println(F("[DHCP] Creation serveur impossible"));
-    return false;
-  }
+  Serial.print(F("[ETH] IP WT32     : "));
+  Serial.println(ETH.localIP());
 
-  ip4_addr_t serverIp;
-  IP4_ADDR(&serverIp, 192, 168, 4, 1);
-
-  LOCK_TCPIP_CORE();
-
-  err_t err = dhcps_start(
-    directDhcpServer,
-    lwipNetif,
-    serverIp
+  Serial.println(
+    F("[ETH] IP centrale  : 192.168.1.81")
   );
 
-  UNLOCK_TCPIP_CORE();
-
-  if (err != ERR_OK) {
-    Serial.print(F("[DHCP] Demarrage impossible, erreur "));
-    Serial.println((int)err);
-
-    dhcps_delete(directDhcpServer);
-    directDhcpServer = nullptr;
-
-    return false;
-  }
-
-  Serial.println(F("[DHCP] Serveur DHCP demarre"));
-  Serial.println(F("[DHCP] Centrale en attente d'une adresse"));
+  // Adresse usine de la centrale
+  strlcpy(
+    config.data().alarmIp,
+    "192.168.1.81",
+    sizeof(config.data().alarmIp)
+  );
 
   return true;
 }
 
 static bool initEthernet() {
+
   Serial.println(F("[ETH] Initialisation LAN8720..."));
 
-  /*
-   * WT32-ETH01 :
-   *
-   * PHY       : LAN8720
-   * PHY addr  : 1
-   * MDC       : GPIO23
-   * MDIO      : GPIO18
-   * POWER     : GPIO16
-   * REF_CLK   : GPIO0 en entree
-   */
+  // --------------------------------------------------
+  // Initialisation PHY
+  // --------------------------------------------------
 
-  bool ok = ETH.begin(
-    ETH_PHY_LAN8720,
-    1,
-    23,
-    18,
-    16,
-    ETH_CLOCK_GPIO0_IN
-  );
+  if (!ETH.begin(
+        ETH_PHY_LAN8720,
+        1,
+        23,
+        18,
+        16,
+        ETH_CLOCK_GPIO0_IN)) {
 
-  if (!ok) {
-    Serial.println(F("[ETH] ERREUR initialisation LAN8720"));
+    Serial.println(
+      F("[ETH] ERREUR initialisation LAN8720")
+    );
+
     return false;
   }
 
   ETH.setHostname(ALARM_GATEWAY_HOSTNAME);
 
+  // --------------------------------------------------
+  // Attente liaison Ethernet
+  // --------------------------------------------------
+
   Serial.print(F("[ETH] Attente liaison"));
 
   uint32_t start = millis();
 
-  while (!ETH.linkUp() && millis() - start < 10000UL) {
+  while (!ETH.linkUp() &&
+         millis() - start < 10000UL) {
+
     Serial.print('.');
     delay(250);
   }
@@ -191,7 +173,11 @@ static bool initEthernet() {
   Serial.println();
 
   if (!ETH.linkUp()) {
-    Serial.println(F("[ETH] Aucun lien Ethernet"));
+
+    Serial.println(
+      F("[ETH] Aucun lien Ethernet")
+    );
+
     return false;
   }
 
@@ -205,43 +191,52 @@ static bool initEthernet() {
 
   while (ETH.localIP() == IPAddress(0, 0, 0, 0) &&
          millis() - start < 40000UL) {
+
     Serial.print('.');
     delay(250);
   }
 
   Serial.println();
 
-	if (ETH.localIP() == IPAddress(0, 0, 0, 0)) {
-		Serial.println(F("[ETH] DHCP non obtenu"));
-		Serial.println(F("[ETH] Passage en mode connexion directe"));
+  // --------------------------------------------------
+  // DHCP obtenu : fonctionnement normal
+  // --------------------------------------------------
 
-		IPAddress ip(192, 168, 4, 1);
-		IPAddress gateway(0, 0, 0, 0);
-		IPAddress subnet(255, 255, 255, 0);
-		IPAddress dns(0, 0, 0, 0);
-		if (!ETH.config(ip, gateway, subnet, dns)) {
-			Serial.println(F("[ETH] Configuration IP directe impossible"));
-			return false;
-		}
-		Serial.print(F("[ETH] IP directe : "));
-		Serial.println(ETH.localIP());
-		if (!startDirectDhcpServer()) {
-			Serial.println(F("[ETH] Echec serveur DHCP mode direct"));
-			return false;
-		}
-	}
-	else {
-		Serial.println(F("[ETH] DHCP obtenu"));
-	}
-	Serial.print(F("[ETH] IP      : "));
-	Serial.println(ETH.localIP());
-	Serial.print(F("[ETH] Masque  : "));
-	Serial.println(ETH.subnetMask());
-	Serial.print(F("[ETH] Gateway : "));
-	Serial.println(ETH.gatewayIP());
-	return true;
+  if (ETH.localIP() != IPAddress(0, 0, 0, 0)) {
 
-  Serial.println(F("[ETH] DHCP obtenu"));
+    Serial.println(F("[ETH] DHCP obtenu"));
+
+    Serial.print(F("[ETH] IP      : "));
+    Serial.println(ETH.localIP());
+
+    Serial.print(F("[ETH] Masque  : "));
+    Serial.println(ETH.subnetMask());
+
+    Serial.print(F("[ETH] Gateway : "));
+    Serial.println(ETH.gatewayIP());
+
+    return true;
+  }
+
+  // --------------------------------------------------
+  // Pas de DHCP : mode direct / configuration usine
+  // --------------------------------------------------
+
+  Serial.println(F("[ETH] DHCP non obtenu"));
+
+  if (!startDirectMode()) {
+    return false;
+  }
+
+return true;
+
+  // --------------------------------------------------
+  // Connexion directe opérationnelle
+  // --------------------------------------------------
+
+  Serial.println(
+    F("[ETH] Mode connexion directe actif")
+  );
 
   Serial.print(F("[ETH] IP      : "));
   Serial.println(ETH.localIP());
@@ -249,8 +244,8 @@ static bool initEthernet() {
   Serial.print(F("[ETH] Masque  : "));
   Serial.println(ETH.subnetMask());
 
-  Serial.print(F("[ETH] Gateway : "));
-  Serial.println(ETH.gatewayIP());
+  Serial.print(F("[ETH] Centrale : "));
+  Serial.println(config.data().alarmIp);
 
   return true;
 }
