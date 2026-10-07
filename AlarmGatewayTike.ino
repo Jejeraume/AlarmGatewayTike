@@ -40,6 +40,7 @@ WebInterface web(config, alarmClient);
 AlarmEntry lastEntry;
 
 bool haveLastEntry = false;
+bool alarmCommunicationLost = false;
 
 uint32_t lastPollMs = 0;
 
@@ -502,6 +503,38 @@ static void notifyEvent(const AlarmEntry &e) {
 }
 
 // -----------------------------------------------------------------------------
+// Envoi de SMS sur perte de communication
+// -----------------------------------------------------------------------------
+
+static void notifyCommunicationLoss() {
+  const auto &snap = config.snapshot();
+
+  PhoneList phones;
+
+  for (uint8_t i = 0; i < 4; ++i)
+    phones.phone[i] = snap.phones[i];
+
+  phones.dialCount = snap.dialCount;
+
+  if (phones.countValid() == 0) {
+    web.setLastMessage(
+      F("Perte de communication mais aucun telephone configure")
+    );
+    return;
+  }
+
+  if (!modem.sendSMS(
+        phones,
+        F("Perte de communication avec la centrale")
+      )) {
+
+    web.setLastMessage(
+      F("SMS perte de communication echoue")
+    );
+  }
+}
+
+// -----------------------------------------------------------------------------
 // Verification expediteur SMS
 // -----------------------------------------------------------------------------
 
@@ -588,7 +621,56 @@ static void pollAlarm() {
     web.setLastMessage(
       alarmClient.lastError()
     );
+
+    if (!alarmCommunicationLost) {
+      alarmCommunicationLost = true;
+
+      Serial.println(
+        F("[ALARME] Perte de communication avec la centrale")
+      );
+
+      notifyCommunicationLoss();
+    }
+
     return;
+  }
+
+  // ------------------------------------------------------------
+  // Communication rétablie
+  // ------------------------------------------------------------
+
+  if (alarmCommunicationLost) {
+    alarmCommunicationLost = false;
+
+    Serial.println(
+      F("[ALARME] Communication avec la centrale retablie")
+    );
+
+    const auto &snap = config.snapshot();
+
+    PhoneList phones;
+
+    for (uint8_t i = 0; i < 4; ++i)
+      phones.phone[i] = snap.phones[i];
+
+    phones.dialCount = snap.dialCount;
+
+    if (phones.countValid() == 0) {
+      web.setLastMessage(
+        F("Communication retablie mais aucun telephone configure")
+      );
+    }
+    else {
+      if (!modem.sendSMS(
+            phones,
+            F("Communication avec la centrale rétablie")
+          )) {
+
+        web.setLastMessage(
+          F("SMS retablissement communication echoue")
+        );
+      }
+    }
   }
 
   web.setAlarmReachable(true);

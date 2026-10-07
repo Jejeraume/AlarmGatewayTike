@@ -110,7 +110,8 @@ String WebInterface::mainPage()const{
 		p += F("'></td></tr>");
 	}
 	p += F("</table><br>");
-	p+=F("'><br><button class='pri'>Enregistrer</button></form><form method='post' action='/test' style='display:inline'><button class='sec'>Tester la centrale</button></form><form method='post' action='/search' style='display:inline'><button class='sec'>Rechercher l'IP de l'alarme</button></form><h2>Etat</h2>");
+	
+	p+=F("<br><button class='pri'>Enregistrer</button></form><form method='post' action='/test' style='display:inline'><button class='sec'>Tester la centrale</button></form><form method='post' action='/search' style='display:inline'><button class='sec'>Rechercher l'IP de l'alarme</button></form><h2>Etat</h2>");
 	p+=alarmReachable_?F("<div class='ok'>Centrale joignable</div>"):F("<div class='bad'>Centrale non validee</div>");
 	p+=F("<div class='mono'>");
 	if(haveEntry_){
