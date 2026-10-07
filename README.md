@@ -2,7 +2,7 @@
 
 **Passerelle ESP32 entre une centrale d'alarme, le réseau Ethernet, le modem GSM et Home Assistant.**
 
-AlarmGatewayTike est un projet basé sur **ESP32** permettant d'interfacer une centrale d'alarme avec différents services et équipements externes.
+AlarmGatewayTike est un projet basé sur **ESP32** permettant d'interfacer une centrale d'alarme type ST-VGT avec différents services et équipements externes.
 
 La passerelle communique directement avec la centrale par **Ethernet**, surveille son état périodiquement et permet de transmettre les événements vers :
 
